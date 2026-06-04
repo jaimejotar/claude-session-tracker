@@ -52,9 +52,20 @@ Ver `claudeSessionTracker.*` en Settings: `layout`, `density`, `purrMode`, `vibr
 
 ```bash
 npm install
-npm run build      # esbuild → dist/extension.js
+npm run build      # tsc → dist/extension.js
 # F5 en VS Code para lanzar el Extension Development Host
 npm run package    # genera el .vsix
+```
+
+### Release (CI auto-publish)
+
+Al empujar un tag `vX.Y.Z`, GitHub Actions publica al Marketplace (requiere el secret `VSCE_PAT`):
+
+```bash
+# 1) bump version en package.json + CHANGELOG.md, commit
+# 2) tag y push:
+git tag v0.1.5
+git push origin v0.1.5     # → dispara .github/workflows/publish.yml
 ```
 
 ## Limitaciones conocidas

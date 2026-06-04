@@ -1,0 +1,24 @@
+name: Publish to VS Code Marketplace
+
+# Publica al hacer push de un tag de versión, p.ej.:
+#   git tag v0.1.5 && git push origin v0.1.5
+# Requiere el secret VSCE_PAT (PAT de Azure DevOps con scope Marketplace ▸ Manage).
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Publicar en el Marketplace
+        run: npx --yes @vscode/vsce publish --no-dependencies
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
