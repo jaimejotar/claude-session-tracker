@@ -7,6 +7,7 @@ demo/**
 verify.js
 make-icon.js
 make-screenshots.js
+make-hero.js
 *.vsix
 **/*.map
 **/*.ts

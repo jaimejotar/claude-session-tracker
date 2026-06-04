@@ -1,5 +1,7 @@
 # Claude Session Tracker
 
+![Claude Session Tracker — un gato por sesión, animado según su estado](docs/hero.gif)
+
 Un radiador para tus sesiones de **Claude Code for VS Code**: ve de un vistazo cuáles están
 trabajando, cuáles **esperan tu input** y cuáles terminaron — sin saltar entre tabs y ventanas —
 y recibe un aviso (sonido + vibración de la tarjeta + badge en la status bar) cuando alguna te necesita.
