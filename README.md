@@ -8,6 +8,16 @@ y recibe un aviso (sonido + vibración de la tarjeta + badge en la status bar) c
 > de VS Code, ver issues [#29928](https://github.com/anthropics/claude-code/issues/29928) y
 > [#43031](https://github.com/anthropics/claude-code/issues/43031)).
 
+## Estados (Purr mode 🐱)
+
+Cada sesión es un gato cuyo **color** (único por sesión) y **pose** reflejan su estado:
+
+![Estados de las sesiones](docs/states.png)
+
+🟢 **Trabajando** — gato con lentes tras un laptop · 🟠 **Espera tu input** — jugando con un ovillo · ⏸ **Posible permiso** — con un "?" · ⚪ **Ociosa / lista** — durmiendo de lado
+
+*(Renders generados con el mismo motor pixel-art de la extensión.)*
+
 ## Cómo funciona
 
 No depende de hooks (que no disparan fiable en la extensión de VS Code). En su lugar **vigila los

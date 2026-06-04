@@ -6,6 +6,7 @@ tsconfig.json
 demo/**
 verify.js
 make-icon.js
+make-screenshots.js
 *.vsix
 **/*.map
 **/*.ts
