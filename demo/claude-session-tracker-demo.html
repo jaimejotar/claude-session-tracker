@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark" data-layout="cards" data-density="comfortable" data-width="sidebar" data-vibe="subtle" data-purr="on">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Session Tracker — DEMO (prototipo visual)</title>
+<style>
+  /* ============ THEME TOKENS (aprox. VS Code) ============ */
+  :root {
+    --st-working: #3fb950;   /* verde  */
+    --st-input:   #e3a008;   /* ámbar  */
+    --st-perm:    #a371f7;   /* morado */
+    --st-idle:    #6e7681;   /* gris   */
+    --radius: 8px;
+    --mono: ui-monospace, "Cascadia Code", "Consolas", monospace;
+    --sans: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  :root {
+    /* defaults = Dark Modern; el JS sobreescribe estos al elegir tema */
+    --bg: #1f1f1f; --bg-elev: #181818; --bg-elev2: #202020; --bg-hover: #2a2d2e;
+    --border: #2b2b2b; --fg: #cccccc; --fg-strong: #ffffff; --fg-dim: #9d9d9d;
+    --accent: #0078d4; --accent-fg: #ffffff; --sb-bg: #181818; --sb-fg: #cccccc;
+    --shadow: rgba(0,0,0,.45);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: var(--sans); font-size: 14px; line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ PAGE FRAME ============ */
+  .page { max-width: 1180px; margin: 0 auto; padding: 18px 20px 70px; }
+  .banner {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px; margin-bottom: 16px; border-radius: var(--radius);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 22%, var(--bg)), var(--bg-elev));
+    border: 1px solid var(--border);
+  }
+  .banner h1 { font-size: 16px; margin: 0; color: var(--fg-strong); font-weight: 650; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg-elev2);
+          color: var(--fg-dim); border: 1px solid var(--border); white-space: nowrap; }
+  .banner .note { font-size: 12px; color: var(--fg-dim); margin-left: auto; }
+
+  /* ============ CONTROL BAR ============ */
+  .controls {
+    display: flex; gap: 14px 18px; flex-wrap: wrap; align-items: flex-end;
+    padding: 12px 14px; margin-bottom: 18px; background: var(--bg-elev);
+    border: 1px solid var(--border); border-radius: var(--radius);
+  }
+  .ctl { display: flex; flex-direction: column; gap: 5px; }
+  .ctl > label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-dim); }
+  .seg { display: inline-flex; background: var(--bg-elev2); border: 1px solid var(--border);
+         border-radius: 6px; overflow: hidden; }
+  .seg button {
+    appearance: none; border: 0; background: transparent; color: var(--fg-dim);
+    font: inherit; font-size: 12.5px; padding: 5px 11px; cursor: pointer; white-space: nowrap;
+  }
+  .seg button:hover { background: var(--bg-hover); color: var(--fg); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+  .btn {
+    appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg-elev2); color: var(--fg);
+    padding: 6px 12px; border-radius: 6px;
+  }
+  .btn:hover { background: var(--bg-hover); }
+  .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+  .spacer { flex: 1 1 auto; }
+  .theme-select { background: var(--bg-elev2); color: var(--fg); border: 1px solid var(--border);
+                  border-radius: 6px; padding: 5px 9px; font: inherit; font-size: 12.5px; min-width: 174px; cursor: pointer; }
+  .theme-select:hover { background: var(--bg-hover); }
+  .snd { display: inline-flex; gap: 5px; }
+  .snd-sel { min-width: 116px; }
+  .mini { appearance: none; font: inherit; font-size: 12.5px; cursor: pointer; border: 1px solid var(--border);
+          background: var(--bg-elev2); color: var(--fg); border-radius: 6px; padding: 5px 9px; }
+  .mini:hover { background: var(--bg-hover); }
+
+  /* ============ STAGE (simula el contenedor del panel) ============ */
+  .stage { display: flex; justify-content: flex-start; }
+  html[data-width="wide"] .stage { display: block; }
+  .panel {
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; width: 100%;
+  }
+  html[data-width="sidebar"] .panel {
+    max-width: 340px; border-left: 3px solid var(--accent);
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+    background: var(--bg-elev); border-bottom: 1px solid var(--border);
+    font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--fg-dim);
+  }
+  .panel-head .count { margin-left: auto; color: var(--st-input); font-weight: 700; letter-spacing: 0; }
+  .panel-body { padding: 8px; }
+  .widthhint { font-size: 11px; color: var(--fg-dim); margin: 6px 2px 0; text-align: center; }
+  html[data-width="wide"] .widthhint { text-align: left; }
+
+  /* ============ STATE DOT / BADGE ============ */
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .s-working .dot { background: var(--st-working); box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-working) 28%, transparent); }
+  .s-waiting_input .dot { background: var(--st-input); box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-input) 30%, transparent); }
+  .s-waiting_permission .dot { background: var(--st-perm); }
+  .s-idle .dot { background: var(--st-idle); }
+  .badge {
+    font-size: 10.5px; padding: 1.5px 7px; border-radius: 999px; white-space: nowrap; font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .s-working .badge { color: var(--st-working); background: color-mix(in srgb, var(--st-working) 16%, transparent); }
+  .s-waiting_input .badge { color: var(--st-input); background: color-mix(in srgb, var(--st-input) 18%, transparent); }
+  .s-waiting_permission .badge { color: var(--st-perm); background: color-mix(in srgb, var(--st-perm) 16%, transparent); }
+  .s-idle .badge { color: var(--st-idle); background: color-mix(in srgb, var(--st-idle) 16%, transparent); }
+
+  /* attention pulse for waiting states */
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+  .attention .dot { animation: pulse 1.4s ease-in-out infinite; }
+
+  /* buzz (vibración) + glow al transicionar a "necesita atención" */
+  @keyframes buzz {
+    10%,90% { transform: translateX(calc(var(--amp,2px) * -0.4)); }
+    20%,80% { transform: translateX(calc(var(--amp,2px) *  0.6)); }
+    30%,50%,70% { transform: translateX(calc(var(--amp,2px) * -1)); }
+    40%,60% { transform: translateX(var(--amp,2px)); }
+  }
+  @keyframes glow {
+    0%   { box-shadow: 0 0 0 0 var(--glowc); }
+    70%  { box-shadow: 0 0 0 7px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .session.buzz { animation: buzz .5s cubic-bezier(.36,.07,.19,.97) both, glow .9s ease-out; }
+  .session.glowonly { animation: glow .9s ease-out; }
+
+  /* purr mode — gato pixel-art por tarjeta */
+  .purrcat { image-rendering: pixelated; image-rendering: crisp-edges; width: 46px; height: 46px; flex: 0 0 auto; }
+  .list .purrcat { width: 34px; height: 34px; }
+  .kcat { text-align: center; margin-bottom: 2px; }
+
+  /* working shimmer */
+  @keyframes shimmer { 0% { transform: translateX(-100%) } 100% { transform: translateX(300%) } }
+  .work-bar { height: 3px; border-radius: 3px; background: color-mix(in srgb, var(--st-working) 22%, transparent);
+              overflow: hidden; position: relative; margin-top: 7px; }
+  .work-bar::after { content:""; position:absolute; inset:0; width: 30%;
+              background: var(--st-working); animation: shimmer 1.5s linear infinite; }
+
+  /* ============ LAYOUT: LIST ============ */
+  .list .session {
+    display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .list .session:hover { background: var(--bg-hover); border-color: var(--border); }
+  .list .session + .session { margin-top: 2px; }
+  .list .main { min-width: 0; flex: 1 1 auto; }
+  .list .title { color: var(--fg-strong); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list .meta { font-size: 11.5px; color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list .elapsed { font-size: 11.5px; color: var(--fg-dim); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+  .list .detail { display: none; }
+
+  /* ============ LAYOUT: CARDS ============ */
+  .cards .grid { display: grid; gap: 9px; grid-template-columns: 1fr; }
+  html[data-width="wide"] .cards .grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .cards .session {
+    background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 11px 12px; cursor: pointer;
+  }
+  .cards .session:hover { background: var(--bg-elev2); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .cards .row1 { display: flex; align-items: center; gap: 8px; }
+  .cards .proj { font-size: 11px; color: var(--fg-dim); flex: 1 1 auto; min-width: 0;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cards .title { color: var(--fg-strong); font-weight: 650; margin: 6px 0 2px; }
+  .cards .detail { font-size: 12px; color: var(--fg-dim); }
+  .cards .row2 { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .cards .elapsed { font-size: 11.5px; color: var(--fg-dim); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  /* ============ LAYOUT: KANBAN ============ */
+  .kanban .cols { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .kanban .col { flex: 1 0 200px; min-width: 190px; background: var(--bg-elev); border: 1px solid var(--border);
+                 border-radius: var(--radius); padding: 8px; }
+  .kanban .col-head { font-size: 11px; font-weight: 700; color: var(--fg-dim); display: flex; align-items: center;
+                      gap: 6px; padding: 2px 4px 8px; }
+  .kanban .col-head .n { margin-left: auto; background: var(--bg-elev2); border-radius: 999px; padding: 0 7px; }
+  .kanban .session { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 9px;
+                     cursor: pointer; }
+  .kanban .session + .session { margin-top: 7px; }
+  .kanban .session:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+  .kanban .proj { font-size: 10.5px; color: var(--fg-dim); }
+  .kanban .title { color: var(--fg-strong); font-weight: 620; font-size: 12.5px; margin: 3px 0; }
+  .kanban .detail { font-size: 11px; color: var(--fg-dim); }
+  .kanban .elapsed { font-size: 10.5px; color: var(--fg-dim); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kanban .badge, .kanban .work-bar { display: none; }
+
+  /* ============ DENSITY: COMPACT (ingenieril) ============ */
+  html[data-density="compact"] body, html[data-density="compact"] .panel { font-size: 12.5px; }
+  html[data-density="compact"] .title,
+  html[data-density="compact"] .meta,
+  html[data-density="compact"] .detail,
+  html[data-density="compact"] .proj { font-family: var(--mono); }
+  html[data-density="compact"] .list .session { padding: 4px 7px; }
+  html[data-density="compact"] .cards .session { padding: 7px 9px; }
+  html[data-density="compact"] .emoji { display: none; }      /* compacto: solo dot, sin emoji */
+  html[data-density="comfortable"] .dot { display: none; }    /* cómodo: emoji en vez de dot */
+  .emoji { font-size: 13px; flex: 0 0 auto; }
+  html[data-density="comfortable"] .work-bar { /* keep */ }
+  html[data-density="compact"] .work-bar { display: none; }
+
+  /* ============ STATUS BAR (simula la de VS Code) ============ */
+  .statusbar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 26px; display: flex; align-items: center;
+    gap: 14px; padding: 0 12px; background: var(--accent); color: var(--accent-fg);
+    font-size: 12px; z-index: 30;
+  }
+  .statusbar .sb-badge { display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+                         padding: 2px 6px; border-radius: 4px; }
+  .statusbar .sb-badge:hover { background: rgba(255,255,255,.18); }
+  .statusbar .right { margin-left: auto; opacity: .85; }
+
+  /* ============ TOAST ============ */
+  .toasts { position: fixed; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
+  .toast {
+    width: 320px; background: var(--bg-elev); border: 1px solid var(--border);
+    border-left: 4px solid var(--st-input); border-radius: 6px; padding: 11px 12px;
+    box-shadow: 0 6px 22px var(--shadow); animation: slidein .22s ease;
+  }
+  @keyframes slidein { from { transform: translateY(10px); opacity: 0 } to { transform: none; opacity: 1 } }
+  .toast .t-title { font-weight: 650; color: var(--fg-strong); font-size: 13px; margin-bottom: 3px; }
+  .toast .t-body { font-size: 12px; color: var(--fg-dim); margin-bottom: 9px; }
+  .toast .t-actions { display: flex; gap: 8px; }
+
+  /* ============ CONFIG MODAL ============ */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center;
+             justify-content: center; z-index: 50; }
+  .overlay.open { display: flex; }
+  .modal { width: min(560px, 92vw); max-height: 84vh; overflow: auto; background: var(--bg-elev);
+           border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 40px var(--shadow); }
+  .modal h2 { font-size: 14px; margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--fg-strong); }
+  .modal .mbody { padding: 6px 16px 16px; }
+  .cfg-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+  .cfg-row:last-child { border-bottom: 0; }
+  .cfg-row .k { flex: 1 1 auto; }
+  .cfg-row .k b { color: var(--fg-strong); font-weight: 600; }
+  .cfg-row .k small { display: block; color: var(--fg-dim); font-size: 11.5px; }
+  .cfg-row select, .cfg-row input[type="number"] { background: var(--bg); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; font: inherit; font-size: 12.5px; }
+  .modal .mfoot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between;
+                  align-items: center; gap: 10px; }
+  .modal .mfoot small { color: var(--fg-dim); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="banner">
+    <h1>🛰️ Claude Session Tracker</h1>
+    <span class="pill">PROTOTIPO · datos simulados</span>
+    <span class="note">Juega con los controles para definir la UI real de la extensión.</span>
+  </div>
+
+  <div class="controls">
+    <div class="ctl">
+      <label>Tema (VS Code)</label>
+      <select id="themeSelect" class="theme-select"></select>
+    </div>
+    <div class="ctl">
+      <label>Layout / dashboard</label>
+      <div class="seg" data-group="layout">
+        <button data-val="list">Lista compacta</button>
+        <button data-val="cards" aria-pressed="true">Tarjetas</button>
+        <button data-val="kanban">Kanban</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Densidad / tono</label>
+      <div class="seg" data-group="density">
+        <button data-val="compact">Compacto (ingenieril)</button>
+        <button data-val="comfortable" aria-pressed="true">Cómodo (amigable)</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Ancho</label>
+      <div class="seg" data-group="width">
+        <button data-val="sidebar" aria-pressed="true">Sidebar (~320px)</button>
+        <button data-val="wide">Panel ancho</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Purr mode 🐱</label>
+      <div class="seg" data-group="purr">
+        <button data-val="off">Off</button>
+        <button data-val="on" aria-pressed="true">On</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>Sonido 🟠 espera</label>
+      <div class="snd"><select id="soundInput" class="theme-select snd-sel"></select><button class="mini" data-preview="input" title="Probar sonido">▷</button></div>
+    </div>
+    <div class="ctl">
+      <label>Sonido ⏸ permiso</label>
+      <div class="snd"><select id="soundPerm" class="theme-select snd-sel"></select><button class="mini" data-preview="perm" title="Probar sonido">▷</button></div>
+    </div>
+    <div class="ctl">
+      <label>Sonido ✅ éxito</label>
+      <div class="snd"><select id="soundDone" class="theme-select snd-sel"></select><button class="mini" data-preview="done" title="Probar sonido">▷</button></div>
+    </div>
+    <div class="ctl">
+      <label>Vibración tarjeta</label>
+      <div class="seg" data-group="vibe">
+        <button data-val="off">Off</button>
+        <button data-val="subtle" aria-pressed="true">Sutil</button>
+        <button data-val="medium">Media</button>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn primary" id="simInput">🟠 Simular espera</button>
+    <button class="btn primary" id="simPerm">⏸ Simular permiso</button>
+    <button class="btn primary" id="simDone">✅ Simular éxito</button>
+    <button class="btn" id="openCfg">⚙ Configuración</button>
+  </div>
+
+  <div class="stage">
+    <div class="panel">
+      <div class="panel-head">
+        <span>Claude Sessions</span>
+        <span class="count" id="headCount"></span>
+      </div>
+      <div class="panel-body" id="panelBody"></div>
+    </div>
+  </div>
+  <div class="widthhint" id="widthHint"></div>
+
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <span class="sb-badge" id="sbBadge" title="Sesiones que esperan tu input"></span>
+  <span class="right">Claude Session Tracker · demo</span>
+</div>
+
+<!-- TOASTS -->
+<div class="toasts" id="toasts"></div>
+
+<!-- CONFIG MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>⚙ Configuración (mock — define qué entra a la v1)</h2>
+    <div class="mbody">
+      <div class="cfg-row"><div class="k"><b>Tema</b><small>claude-session-tracker.theme</small></div>
+        <select><option>auto</option><option>claro</option><option>oscuro</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Layout por defecto</b><small>.layout</small></div>
+        <select><option>tarjetas</option><option>lista</option><option>kanban</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Densidad</b><small>.density</small></div>
+        <select><option>cómodo</option><option>compacto</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Ubicación</b><small>.location — sidebar o panel de editor</small></div>
+        <select><option>sidebar</option><option>panel ancho</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Sonido — espera input</b><small>.sound.waitingInput — al pasar de 🟢 a 🟠</small></div>
+        <select><option>knock</option><option>chime</option><option>glass</option><option>ping</option><option>off</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Sonido — posible permiso</b><small>.sound.waitingPermission — al pasar de 🟢 a ⏸</small></div>
+        <select><option>glass</option><option>alert</option><option>blip</option><option>knock</option><option>off</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Sonido — éxito (terminó sin input)</b><small>.sound.done — al pasar de 🟢 a ⚪ ✓</small></div>
+        <select><option>tada</option><option>success</option><option>marimba</option><option>off</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Vibración de la tarjeta</b><small>.attention.buzz — shake al necesitar atención</small></div>
+        <select><option>sutil</option><option>media</option><option>off</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Volumen</b><small>.sound.volume</small></div>
+        <input type="number" value="13" style="width:64px"> %</div>
+      <div class="cfg-row"><div class="k"><b>Solo cuando VS Code no está enfocado</b><small>.sound.onlyWhenUnfocused — evita pitidos en la ventana que ya miras</small></div>
+        <select><option>sí</option><option>no</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Umbral "trabajando"</b><small>.thresholds.workingSeconds — mtime más reciente que esto = activa</small></div>
+        <input type="number" value="5" style="width:64px"> s</div>
+      <div class="cfg-row"><div class="k"><b>Umbral "ociosa"</b><small>.thresholds.idleMinutes</small></div>
+        <input type="number" value="3" style="width:64px"> min</div>
+      <div class="cfg-row"><div class="k"><b>Orden</b><small>.sort</small></div>
+        <select><option>necesitan atención primero</option><option>por proyecto</option><option>por recencia</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Proyectos</b><small>.projects.include / .exclude — filtra carpetas de ~/.claude/projects</small></div>
+        <select><option>todos</option><option>solo seleccionados…</option></select></div>
+      <div class="cfg-row"><div class="k"><b>Mostrar sesiones cerradas</b><small>.showClosed</small></div>
+        <select><option>no</option><option>sí</option></select></div>
+    </div>
+    <div class="mfoot">
+      <small>Esto es ilustrativo: marca cuáles quieres y cuáles sobran.</small>
+      <button class="btn primary" id="closeCfg">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===================== MOCK DATA (proyectos reales de Jaime) =====================
+  const STATES = {
+    working:            { label: 'Trabajando',       emoji: '🟢', order: 2 },
+    waiting_input:      { label: 'Espera tu input',  emoji: '🟠', order: 0 },
+    waiting_permission: { label: 'Posible permiso',  emoji: '⏸', order: 1 },
+    idle:               { label: 'Ociosa / lista',   emoji: '⚪', order: 3 },
+  };
+
+  let sessions = [
+    { id:'s1', project:'api-gateway',   title:'add rate limiting middleware',  state:'waiting_input',      secs:132,  detail:'Pregunta: ¿confirmas el límite de 100 req/min?' },
+    { id:'s2', project:'web-frontend',  title:'fix checkout button',           state:'working',            secs:14,   detail:'editando src/components/Checkout.tsx' },
+    { id:'s3', project:'data-pipeline', title:'correr tests de ingesta',       state:'working',            secs:3,    detail:'pytest -q  ·  12 passed' },
+    { id:'s4', project:'auth-service',  title:'rotar tokens JWT',              state:'waiting_permission', secs:67,   detail:'quiere ejecutar: npm run migrate …' },
+    { id:'s5', project:'email-worker',  title:'timeout SMTP',                  state:'waiting_input',      secs:41,   detail:'Pregunta: ¿uso timeout=30s?' },
+    { id:'s6', project:'docs-site',     title:'generar changelog v2',          state:'idle',               secs:488,  detail:'✓ terminado' },
+    { id:'s7', project:'mobile-app',    title:'scaffold pantalla de login',    state:'idle',               secs:1320, detail:'ociosa' },
+  ];
+
+  const $ = (s, el=document) => el.querySelector(s);
+  const root = document.documentElement;
+
+  function fmt(secs) {
+    if (secs < 60) return secs + 's';
+    if (secs < 3600) return Math.floor(secs/60) + 'm ' + (secs%60).toString().padStart(2,'0') + 's';
+    return Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
+  }
+  const isAttention = s => s.state === 'waiting_input' || s.state === 'waiting_permission';
+  function sorted() {
+    return [...sessions].sort((a,b) => STATES[a.state].order - STATES[b.state].order || a.secs - b.secs);
+  }
+  function waitingCount() { return sessions.filter(s => s.state === 'waiting_input').length; }
+
+  // ===================== PURR MODE — gato pixel-art 8-bit por tarjeta =====================
+  const CAT = [
+    "................",
+    ".....O....O.....",
+    "....OPO..OPO....",
+    "...OBBBBBBBBO...",
+    "...OBBBBBBBBO...",
+    "...OBBBBBBBBO...",
+    "...OBBBPPBBBO...",
+    "...OBBBBBBBBO...",
+    "....OBBBBBBO....",
+    "....OBLLLLBO....",
+    "....OBLLLLBO....",
+    "....OBLLLLBO....",
+    "....OBBBBBBO....",
+    "....OOBBBBOO....",
+    ".....OO..OO.....",
+    "................",
+  ];
+  const CAT_LYING = [
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "...O.....O......",
+    "..OPO...OPO.....",
+    ".OBBBBBBBBBBO...",
+    "OBBBBBBBBBBBBBO.",
+    "OBEBBEBBBBBBBBO.",
+    "OBBPBBBBBBBBBBO.",
+    "OBLLLBBBBBBBBBO.",
+    "OBBBBBBBBBBBBBO.",
+    ".OOOOOOOOOOOOO..",
+    "................",
+    "................",
+  ];
+  function hashHue(str){ let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h % 360; }
+  function drawGrid(P, grid, col, EYE){
+    for (let y = 0; y < 16; y++){ const row = grid[y]; for (let x = 0; x < 16; x++){ const t = row[x]; if (t === 'E') P(x,y,1,1,EYE); else if (col[t]) P(x,y,1,1,col[t]); } }
+  }
+  function drawTail(P, phase, B, O){
+    if (phase === 1){ [[12,11],[13,11],[14,10],[14,9]].forEach(([x,y]) => P(x,y,1,1,B)); [[15,9],[15,10],[14,8]].forEach(([x,y]) => P(x,y,1,1,O)); }
+    else { [[12,11],[13,10],[13,9],[13,8]].forEach(([x,y]) => P(x,y,1,1,B)); [[14,8],[14,9],[14,10],[13,7]].forEach(([x,y]) => P(x,y,1,1,O)); }
+  }
+  function drawGlasses(P){
+    const F = '#23262e';
+    [[4,4],[5,4],[6,4],[4,5],[6,5],[4,6],[5,6],[6,6],[9,4],[10,4],[11,4],[9,5],[11,5],[9,6],[10,6],[11,6]].forEach(([x,y]) => P(x,y,1,1,F));
+    P(7,4,2,1,F);                                   // puente
+    P(5,5,1,1,'#bfe9ff'); P(10,5,1,1,'#bfe9ff');    // reflejo de los lentes
+  }
+  function drawLaptop(P, f){
+    const SCR = '#2f3744', TOP = '#6f86b3', BASE = '#c7ccd6', OL = '#15181e';
+    P(2,8,12,5,SCR);             // pantalla (tapa el cuerpo → "detrás del laptop")
+    P(2,8,12,1,TOP);             // brillo superior
+    P(2,8,1,5,OL); P(13,8,1,5,OL);
+    P(4 + (f % 4),10,1,1,TOP);   // parpadeo de "tipeo"
+    P(7,10,2,1,'#9aa3b5');       // logo
+    P(1,13,14,1,BASE); P(1,14,14,1,OL);   // teclado / base
+  }
+  function drawYarn(P, f){
+    const Y = '#7c5cff', YO = '#352663', YL = '#bcaeff';
+    const hop = (f % 2) ? -1 : 0, bx = 11, by = 12 + hop;
+    P(bx,by,4,4,Y);
+    [[bx,by],[bx+3,by],[bx,by+3],[bx+3,by+3]].forEach(([x,y]) => P(x,y,1,1,YO));   // esquinas → redondo
+    const o = f % 2;
+    P(bx+1+o,by,1,1,YL); P(bx+(o?0:2),by+1,1,1,YL); P(bx+1,by+2,1,1,YL); P(bx+2,by+3,1,1,YL);
+    P(bx-1,by+2,1,1,Y); P(bx-2,by+3,1,1,Y);          // hebra hacia el gato
+  }
+  function drawZ(P){ const G = '#9aa0a6'; P(11,2,3,1,G); P(13,3,1,1,G); P(11,4,3,1,G); }
+  function drawQuestion(P){ const c = '#a371f7'; P(12,1,2,1,c); P(14,2,1,1,c); P(13,3,1,1,c); P(13,5,1,1,c); }
+  function drawCat(ctx, S, hue, state, fr){
+    const W = 16; ctx.clearRect(0, 0, W*S, W*S);
+    const col = { O:`hsl(${hue} 45% 17%)`, B:`hsl(${hue} 40% 62%)`, L:`hsl(${hue} 30% 92%)`, P:'#e891a8' };
+    const PATCH = `hsl(${(hue+150)%360} 52% 58%)`, EYE = `hsl(${hue} 45% 14%)`;
+    const f = fr % 4;
+
+    if (state === 'idle'){                          // acostado durmiendo + z
+      const dy = (f < 2) ? 0 : 1;                   // respiración
+      const P = (x,y,w,h,c) => { ctx.fillStyle = c; ctx.fillRect(x*S, (y+dy)*S, w*S, h*S); };
+      [[14,7],[14,6],[15,6],[15,5]].forEach(([x,y]) => P(x,y,1,1,col.B));   // cola
+      drawGrid(P, CAT_LYING, col, EYE);
+      [[9,8],[10,8]].forEach(([x,y]) => P(x,y,1,1,PATCH));                  // mancha del lomo
+      drawZ(P);
+      return;
+    }
+
+    const tailPhase = (f < 2) ? 0 : 1;
+    const P = (x,y,w,h,c) => { ctx.fillStyle = c; ctx.fillRect(x*S, y*S, w*S, h*S); };
+    drawTail(P, tailPhase, col.B, col.O);
+    drawGrid(P, CAT, col, EYE);
+    [[4,3],[5,3],[10,9],[10,10]].forEach(([x,y]) => P(x,y,1,1,PATCH));
+    P(5,5,1,2,EYE); P(10,5,1,2,EYE);                // ojos abiertos
+
+    if (state === 'working'){ drawGlasses(P); drawLaptop(P, f); }
+    else if (state === 'waiting_input'){ drawYarn(P, f); }
+    else { drawQuestion(P); }                       // waiting_permission
+  }
+  function catOrIcon(s, st){
+    if (root.getAttribute('data-purr') === 'on')
+      return `<canvas class="purrcat" width="48" height="48" data-id="${s.id}" data-hue="${hashHue(s.id + s.project)}" data-state="${s.state}"></canvas>`;
+    return `<span class="emoji">${st.emoji}</span><span class="dot"></span>`;
+  }
+  let catFrame = 0;
+  function drawAllCats(){
+    document.querySelectorAll('canvas.purrcat').forEach(c => {
+      const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      drawCat(ctx, 3, +c.dataset.hue, c.dataset.state, catFrame);
+    });
+  }
+  setInterval(() => { if (root.getAttribute('data-purr') !== 'on') return; catFrame++; drawAllCats(); }, 150);
+
+  // ===================== RENDER =====================
+  function sessionInner(s) {
+    const st = STATES[s.state];
+    const cls = 's-' + s.state + (isAttention(s) ? ' attention' : '');
+    const icon = catOrIcon(s, st);
+    const layout = root.getAttribute('data-layout');
+    if (layout === 'list') {
+      return `<div class="session ${cls}" data-id="${s.id}">
+        ${icon}
+        <div class="main">
+          <div class="title">${s.title}</div>
+          <div class="meta">${s.project} · ${st.label}</div>
+        </div>
+        <div class="elapsed" data-id="${s.id}">${fmt(s.secs)}</div>
+      </div>`;
+    }
+    if (layout === 'kanban') {
+      return `<div class="session ${cls}" data-id="${s.id}">
+        ${root.getAttribute('data-purr') === 'on' ? '<div class="kcat">' + icon + '</div>' : ''}
+        <div class="proj">${s.project}</div>
+        <div class="title">${s.title}</div>
+        <div class="detail">${s.detail}</div>
+        <div class="elapsed" data-id="${s.id}">⏱ ${fmt(s.secs)}</div>
+      </div>`;
+    }
+    // cards
+    return `<div class="session ${cls}" data-id="${s.id}">
+      <div class="row1">${icon}<span class="proj">${s.project}</span><span class="badge">${st.label}</span></div>
+      <div class="title">${s.title}</div>
+      <div class="detail">${s.detail}</div>
+      ${s.state==='working' ? '<div class="work-bar"></div>' : ''}
+      <div class="row2"><span class="elapsed" data-id="${s.id}">⏱ ${fmt(s.secs)}</span></div>
+    </div>`;
+  }
+
+  function render() {
+    const layout = root.getAttribute('data-layout');
+    const body = $('#panelBody');
+    body.className = 'panel-body ' + layout;
+    if (layout === 'kanban') {
+      const order = ['waiting_input','waiting_permission','working','idle'];
+      body.innerHTML = `<div class="cols">` + order.map(stKey => {
+        const items = sessions.filter(s => s.state === stKey).sort((a,b)=>a.secs-b.secs);
+        return `<div class="col">
+          <div class="col-head"><span>${STATES[stKey].emoji}</span><span>${STATES[stKey].label}</span><span class="n">${items.length}</span></div>
+          ${items.map(sessionInner).join('') || '<div style="font-size:11px;color:var(--fg-dim);padding:4px">—</div>'}
+        </div>`;
+      }).join('') + `</div>`;
+    } else if (layout === 'cards') {
+      body.innerHTML = `<div class="grid">` + sorted().map(sessionInner).join('') + `</div>`;
+    } else {
+      body.innerHTML = sorted().map(sessionInner).join('');
+    }
+    // counts
+    const w = waitingCount();
+    $('#headCount').textContent = w ? `🟠 ${w} esperan` : '';
+    $('#sbBadge').innerHTML = w ? `🟠 ${w} esperan tu input` : `✓ ninguna espera`;
+    // width hint
+    const wide = root.getAttribute('data-width') === 'wide';
+    $('#widthHint').textContent = wide
+      ? 'Panel ancho = se abre como tab del editor (más espacio, ideal para Kanban).'
+      : 'Sidebar ~320px = fidelidad real del webview lateral acoplado de VS Code.';
+    // click → simulate jump
+    body.querySelectorAll('.session').forEach(el => el.addEventListener('click', () => {
+      const s = sessions.find(x => x.id === el.dataset.id);
+      flashJump(s);
+    }));
+    if (root.getAttribute('data-purr') === 'on') drawAllCats();
+  }
+
+  // ===================== INTERACTIONS =====================
+  document.querySelectorAll('.seg').forEach(seg => {
+    seg.addEventListener('click', e => {
+      const btn = e.target.closest('button'); if (!btn) return;
+      seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+      root.setAttribute('data-' + seg.dataset.group, btn.dataset.val);
+      render();
+    });
+  });
+
+  // ---------- Temas VS Code (paletas canónicas extraídas de microsoft/vscode) ----------
+  const RAW_THEMES = [
+    { id:'dark_modern', name:'Dark Modern', kind:'dark', raw:{'editor.background':'#1F1F1F','editor.foreground':'#CCCCCC','foreground':'#CCCCCC','sideBar.background':'#181818','editorWidget.background':'#202020','dropdown.background':'#313131','input.background':'#313131','panel.border':'#2B2B2B','focusBorder':'#0078D4','descriptionForeground':'#9D9D9D','button.background':'#0078D4','button.foreground':'#FFFFFF','statusBar.background':'#181818','statusBar.foreground':'#CCCCCC','badge.background':'#616161','badge.foreground':'#F8F8F8'} },
+    { id:'dark_plus', name:'Dark+', kind:'dark', raw:{'editor.background':'#1E1E1E','editor.foreground':'#D4D4D4','foreground':'#CCCCCC','sideBar.background':'#252526','editorWidget.background':'#252526','dropdown.background':'#3C3C3C','input.background':'#3C3C3C','list.hoverBackground':'#2A2D2E','panel.border':'#80808059','focusBorder':'#007FD4','button.background':'#0E639C','button.foreground':'#FFFFFF','statusBar.background':'#007ACC','statusBar.foreground':'#FFFFFF','badge.background':'#4D4D4D','badge.foreground':'#FFFFFF','descriptionForeground':'#CCCCCCB3'} },
+    { id:'monokai', name:'Monokai', kind:'dark', raw:{'editor.background':'#272822','editor.foreground':'#f8f8f2','sideBar.background':'#1e1f1c','editorWidget.background':'#1e1f1c','dropdown.background':'#414339','input.background':'#414339','list.hoverBackground':'#3e3d32','panel.border':'#414339','focusBorder':'#99947c','button.background':'#75715E','statusBar.background':'#414339','badge.background':'#75715E','badge.foreground':'#f8f8f2'} },
+    { id:'monokai_dimmed', name:'Monokai Dimmed', kind:'dark', raw:{'editor.background':'#1e1e1e','editor.foreground':'#c5c8c6','sideBar.background':'#272727','sideBarSectionHeader.background':'#505050','dropdown.background':'#525252','list.hoverBackground':'#444444','focusBorder':'#3655b5','button.background':'#565656','statusBar.background':'#505050'} },
+    { id:'solarized_dark', name:'Solarized Dark', kind:'dark', raw:{'editor.background':'#002B36','editor.foreground':'#839496','sideBar.background':'#00212B','editorWidget.background':'#00212B','dropdown.background':'#00212B','input.background':'#003847','list.hoverBackground':'#004454AA','panel.border':'#2b2b4a','focusBorder':'#2AA19899','button.background':'#2AA19899','statusBar.background':'#00212B','statusBar.foreground':'#93A1A1','badge.background':'#047aa6'} },
+    { id:'abyss', name:'Abyss', kind:'dark', raw:{'editor.background':'#000c18','editor.foreground':'#6688cc','sideBar.background':'#060621','sideBarSectionHeader.background':'#10192c','editorWidget.background':'#262641','dropdown.background':'#181f2f','input.background':'#181f2f','list.hoverBackground':'#061940','panel.border':'#2b2b4a','focusBorder':'#596F99','button.background':'#2B3C5D','statusBar.background':'#10192c','badge.background':'#0063a5'} },
+    { id:'kimbie_dark', name:'Kimbie Dark', kind:'dark', raw:{'editor.background':'#221a0f','editor.foreground':'#d3af86','sideBar.background':'#362712','editorWidget.background':'#131510','dropdown.background':'#51412c','input.background':'#51412c','list.hoverBackground':'#7c502166','focusBorder':'#a57a4c','button.background':'#6e583b','statusBar.background':'#423523','badge.background':'#7f5d38'} },
+    { id:'tomorrow_night_blue', name:'Tomorrow Night Blue', kind:'dark', raw:{'editor.background':'#002451','editor.foreground':'#ffffff','sideBar.background':'#001c40','editorWidget.background':'#001c40','dropdown.background':'#001733','input.background':'#001733','list.hoverBackground':'#ffffff30','focusBorder':'#bbdaff','editorGroup.border':'#404f7d','statusBar.background':'#001126','badge.background':'#bbdaffcc','badge.foreground':'#001733'} },
+    { id:'red', name:'Red', kind:'dark', raw:{'editor.background':'#390000','editor.foreground':'#F8F8F8','sideBar.background':'#330000','editorWidget.background':'#300000','dropdown.background':'#580000','input.background':'#580000','list.hoverBackground':'#800000','focusBorder':'#ff6666aa','button.background':'#883333','statusBar.background':'#700000','badge.background':'#cc3333'} },
+    { id:'light_modern', name:'Light Modern', kind:'light', raw:{'editor.background':'#FFFFFF','editor.foreground':'#3B3B3B','foreground':'#3B3B3B','sideBar.background':'#F8F8F8','editorWidget.background':'#F8F8F8','dropdown.background':'#FFFFFF','input.background':'#FFFFFF','list.hoverBackground':'#F2F2F2','panel.border':'#E5E5E5','focusBorder':'#005FB8','button.background':'#005FB8','button.foreground':'#FFFFFF','statusBar.background':'#F8F8F8','statusBar.foreground':'#3B3B3B','badge.background':'#CCCCCC','badge.foreground':'#3B3B3B'} },
+    { id:'light_plus', name:'Light+', kind:'light', raw:{'editor.background':'#FFFFFF','editor.foreground':'#000000','foreground':'#616161','sideBar.background':'#F3F3F3','editorWidget.background':'#F3F3F3','dropdown.background':'#FFFFFF','input.background':'#FFFFFF','list.hoverBackground':'#E8E8E8','panel.border':'#80808059','focusBorder':'#0090F1','button.background':'#007ACC','button.foreground':'#FFFFFF','statusBar.background':'#007ACC','statusBar.foreground':'#FFFFFF','badge.background':'#C4C4C4','badge.foreground':'#333333','descriptionForeground':'#717171'} },
+    { id:'solarized_light', name:'Solarized Light', kind:'light', raw:{'editor.background':'#FDF6E3','editor.foreground':'#657B83','sideBar.background':'#EEE8D5','editorWidget.background':'#EEE8D5','dropdown.background':'#EEE8D5','input.background':'#DDD6C1','list.hoverBackground':'#DFCA8844','panel.border':'#DDD6C1','focusBorder':'#b49471','button.background':'#AC9D57','statusBar.background':'#EEE8D5','statusBar.foreground':'#586E75','badge.background':'#B58900AA'} },
+    { id:'quietlight', name:'Quiet Light', kind:'light', raw:{'editor.background':'#F5F5F5','sideBar.background':'#F2F2F2','sideBarSectionHeader.background':'#ede8ef','dropdown.background':'#F5F5F5','list.hoverBackground':'#e0e0e0','focusBorder':'#9769dc','button.background':'#705697','statusBar.background':'#705697','badge.background':'#705697AA'} },
+  ];
+
+  function parseHex(h){
+    if(!h) return null;
+    h = h.replace('#','').trim();
+    if(h.length===3) h = h.split('').map(c=>c+c).join('');
+    else if(h.length===4) h = h.slice(0,3).split('').map(c=>c+c).join('');
+    else if(h.length===8) h = h.slice(0,6);
+    else if(h.length!==6) return null;
+    const n = parseInt(h,16); if(isNaN(n)) return null;
+    return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+  }
+  const toHex = (r,g,b) => '#'+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,'0')).join('');
+  function mix(a,b,t){ const x=parseHex(a),y=parseHex(b); if(!x||!y) return a||b; return toHex(x.r+(y.r-x.r)*t, x.g+(y.g-x.g)*t, x.b+(y.b-x.b)*t); }
+  function isLight(h){ const c=parseHex(h); if(!c) return false; return (0.299*c.r+0.587*c.g+0.114*c.b)/255 > 0.62; }
+  function pick(raw, ...keys){ for(const k of keys){ const v=raw[k]; if(v && v!=='#0000' && v.trim()!=='') return v; } return null; }
+
+  function resolveTheme(t){
+    const r=t.raw, dark=t.kind==='dark', P=(...k)=>pick(r,...k);
+    const bg = P('editor.background') || (dark?'#1e1e1e':'#ffffff');
+    const fg = P('editor.foreground','foreground') || (dark?'#cccccc':'#333333');
+    const white = dark?'#ffffff':'#000000';
+    const fgStrong = mix(fg, white, .45);
+    let fgDim = P('descriptionForeground','disabledForeground');
+    if(!fgDim || fgDim.toLowerCase()===fg.toLowerCase()) fgDim = mix(fg, bg, .42);
+    const bgElev = P('sideBar.background','editorWidget.background') || mix(bg, white, .04);
+    const bgElev2 = P('editorWidget.background','dropdown.background','input.background','sideBarSectionHeader.background') || mix(bgElev, white, .05);
+    const hover = P('list.hoverBackground') || mix(bg, white, .08);
+    const border = P('panel.border','sideBar.border','editorGroup.border','contrastBorder','focusBorder') || mix(bg, white, .16);
+    const accent = P('button.background','focusBorder','badge.background') || (dark?'#0e639c':'#005fb8');
+    const accentFg = P('button.foreground') || (isLight(accent)?'#1b1b1b':'#ffffff');
+    const sbBg = P('statusBar.background','statusBar.noFolderBackground') || accent;
+    const sbFg = P('statusBar.foreground') || (isLight(sbBg)?'#1b1b1b':'#ffffff');
+    return {bg,bgElev,bgElev2,hover,border,fg,fgStrong,fgDim,accent,accentFg,sbBg,sbFg};
+  }
+
+  function applyTheme(id){
+    const t = RAW_THEMES.find(x=>x.id===id) || RAW_THEMES[0];
+    const v = resolveTheme(t), s = root.style;
+    s.setProperty('--bg', v.bg); s.setProperty('--bg-elev', v.bgElev); s.setProperty('--bg-elev2', v.bgElev2);
+    s.setProperty('--bg-hover', v.hover); s.setProperty('--border', v.border);
+    s.setProperty('--fg', v.fg); s.setProperty('--fg-strong', v.fgStrong); s.setProperty('--fg-dim', v.fgDim);
+    s.setProperty('--accent', v.accent); s.setProperty('--accent-fg', v.accentFg);
+    s.setProperty('--sb-bg', v.sbBg); s.setProperty('--sb-fg', v.sbFg);
+    s.setProperty('--shadow', t.kind==='dark' ? 'rgba(0,0,0,.45)' : 'rgba(0,0,0,.14)');
+    root.setAttribute('data-theme', t.kind);
+  }
+
+  (function initThemes(){
+    const sel = document.getElementById('themeSelect');
+    const labels = { dark:'Oscuros', light:'Claros' };
+    ['dark','light'].forEach(kind => {
+      const og = document.createElement('optgroup'); og.label = labels[kind];
+      RAW_THEMES.filter(t=>t.kind===kind).forEach(t => {
+        const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
+    sel.value = 'dark_modern';
+    sel.addEventListener('change', () => applyTheme(sel.value));
+    applyTheme('dark_modern');
+  })();
+
+  (function initSounds(){
+    const opts = [['off','— Off —'],['ping','Ping'],['chime','Chime'],['marimba','Marimba'],['blip','Blip'],['glass','Glass'],['knock','Knock'],['alert','Alert'],['success','Success ✅'],['tada','Tada 🎉']];
+    [['soundInput','knock'],['soundPerm','glass'],['soundDone','tada']].forEach(([id, def]) => {
+      const sel = document.getElementById(id);
+      opts.forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); });
+      sel.value = def;
+    });
+  })();
+
+  // ---------- Motor de sonido (sintetizado con WebAudio, sin archivos) ----------
+  function tone(ctx, freq, type, t0, dur, vol) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = freq; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  function playSound(name) {
+    if (!name || name === 'off') return;
+    let ctx; try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    const v = 0.13, t = ctx.currentTime;
+    switch (name) {
+      case 'ping':    tone(ctx, 880, 'sine', t, 0.28, v); break;
+      case 'chime':   tone(ctx, 659.25, 'sine', t, 0.22, v); tone(ctx, 987.77, 'sine', t + 0.10, 0.30, v); break;
+      case 'marimba': [523.25, 659.25, 783.99].forEach((f, i) => tone(ctx, f, 'triangle', t + i * 0.07, 0.16, v)); break;
+      case 'blip':    tone(ctx, 1100, 'square', t, 0.06, v * 0.7); tone(ctx, 1450, 'square', t + 0.09, 0.06, v * 0.7); break;
+      case 'glass':   tone(ctx, 1568, 'triangle', t, 0.26, v); tone(ctx, 3136, 'sine', t, 0.18, v * 0.4); break;
+      case 'knock':   tone(ctx, 200, 'sine', t, 0.10, v * 1.25); tone(ctx, 160, 'sine', t + 0.12, 0.12, v * 1.25); break;
+      case 'alert':   [700, 900, 1150].forEach((f, i) => tone(ctx, f, 'square', t + i * 0.10, 0.09, v * 0.75)); break;
+      case 'success': [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => tone(ctx, f, 'triangle', t + i * 0.08, 0.18, v)); break;
+      case 'tada':    tone(ctx, 783.99, 'triangle', t, 0.12, v); tone(ctx, 1046.50, 'triangle', t + 0.10, 0.20, v); tone(ctx, 1568, 'sine', t + 0.10, 0.22, v * 0.5); break;
+    }
+    setTimeout(() => { try { ctx.close(); } catch (e) {} }, 1600);
+  }
+  function buzz(card, glow, opts) {
+    if (!card) return;
+    opts = opts || {};
+    const amp = root.getAttribute('data-vibe') || 'subtle';
+    const doShake = opts.shake !== false && amp !== 'off';
+    card.style.setProperty('--amp', amp === 'medium' ? '5px' : '2px');
+    card.style.setProperty('--glowc', glow || getComputedStyle(root).getPropertyValue('--st-input'));
+    card.classList.remove('buzz', 'glowonly'); void card.offsetWidth;   // reflow para reiniciar la animación
+    card.classList.add(doShake ? 'buzz' : 'glowonly');
+    card.addEventListener('animationend', () => card.classList.remove('buzz', 'glowonly'), { once: true });
+  }
+
+  function toast({title, body, accent}) {
+    const wrap = $('#toasts');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    if (accent) el.style.borderLeftColor = accent;
+    el.innerHTML = `<div class="t-title">${title}</div><div class="t-body">${body}</div>
+      <div class="t-actions"><button class="btn primary">Ir a la sesión</button><button class="btn">Descartar</button></div>`;
+    wrap.appendChild(el);
+    const kill = () => el.remove();
+    el.querySelectorAll('button')[1].addEventListener('click', kill);
+    el.querySelectorAll('button')[0].addEventListener('click', () => { kill(); });
+    setTimeout(kill, 7000);
+  }
+
+  function flashJump(s) {
+    toast({
+      title: `→ Ir a la sesión`,
+      body: `Abriría <code>vscode://anthropic.claude-code/open?session=${s.id}</code><br>(${s.project} · ${s.title})`,
+      accent: 'var(--accent)'
+    });
+  }
+
+  const SIM = {
+    input: { state:'waiting_input',      selId:'soundInput', glowVar:'--st-input',   shake:true,  emoji:'🟠 ', body:'terminó su turno y <b>espera tu input</b>', detail:'Pregunta: ¿confirmas para continuar?', accent:'var(--st-input)' },
+    perm:  { state:'waiting_permission', selId:'soundPerm',  glowVar:'--st-perm',    shake:true,  emoji:'⏸ ',  body:'<b>pide permiso</b> para una acción',          detail:'quiere ejecutar: npm run migrate …', accent:'var(--st-perm)' },
+    done:  { state:'idle',               selId:'soundDone',  glowVar:'--st-working', shake:false, emoji:'✅ ', body:'<b>terminó exitosamente</b> sin necesitar input', detail:'✓ terminado', accent:'var(--st-working)' },
+  };
+  function simulateTransition(kind) {
+    const c = SIM[kind];
+    const s = sessions.find(x => x.state === 'working') || sessions.find(x => x.state !== c.state) || sessions[0];
+    s.state = c.state; s.secs = 0; s.detail = c.detail;
+    render();
+    playSound(document.getElementById(c.selId).value);
+    const glow = getComputedStyle(root).getPropertyValue(c.glowVar);
+    buzz(document.querySelector('.session[data-id="' + s.id + '"]'), glow, { shake: c.shake });
+    toast({ title: c.emoji + s.title, body: `<b>${s.project}</b> ${c.body}.`, accent: c.accent });
+  }
+  $('#simInput').addEventListener('click', () => simulateTransition('input'));
+  $('#simPerm').addEventListener('click', () => simulateTransition('perm'));
+  $('#simDone').addEventListener('click', () => simulateTransition('done'));
+  $('#sbBadge').addEventListener('click', () => simulateTransition('input'));
+  document.querySelectorAll('[data-preview]').forEach(btn => btn.addEventListener('click', () => {
+    const id = { input: 'soundInput', perm: 'soundPerm', done: 'soundDone' }[btn.dataset.preview];
+    playSound(document.getElementById(id).value);
+  }));
+
+  $('#openCfg').addEventListener('click', () => $('#overlay').classList.add('open'));
+  $('#closeCfg').addEventListener('click', () => $('#overlay').classList.remove('open'));
+  $('#overlay').addEventListener('click', e => { if (e.target.id === 'overlay') $('#overlay').classList.remove('open'); });
+
+  // live tick: avanza el tiempo y mueve estados sutilmente para que "se sienta vivo"
+  setInterval(() => {
+    sessions.forEach(s => s.secs++);
+    // update only elapsed labels in place (no full re-render → no animation reset)
+    document.querySelectorAll('.elapsed[data-id]').forEach(el => {
+      const s = sessions.find(x => x.id === el.dataset.id);
+      if (s) el.textContent = (el.textContent.trim().startsWith('⏱') ? '⏱ ' : '') + fmt(s.secs);
+    });
+  }, 1000);
+
+  render();
+</script>
+</body>
+</html>

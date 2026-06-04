@@ -1,0 +1,146 @@
+{
+  "name": "claude-session-tracker",
+  "displayName": "Claude Session Tracker",
+  "description": "Radiador de sesiones de Claude Code: ve de un vistazo cuáles trabajan, cuáles esperan tu input y cuáles terminaron — y avísate cuando te necesitan.",
+  "version": "0.1.4",
+  "publisher": "jaimejotar",
+  "license": "MIT",
+  "icon": "media/icon-128.png",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other", "Visualization"],
+  "keywords": ["claude", "claude code", "agent", "sessions", "monitor", "notifications"],
+  "repository": { "type": "git", "url": "https://github.com/jaimejotar/claude-session-tracker" },
+  "bugs": { "url": "https://github.com/jaimejotar/claude-session-tracker/issues" },
+  "homepage": "https://github.com/jaimejotar/claude-session-tracker#readme",
+  "main": "./dist/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claudeSessionTracker",
+          "title": "Claude Sessions",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "claudeSessionTracker": [
+        {
+          "id": "claudeSessionTracker.sessions",
+          "name": "Sessions",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "claudeSessionTracker.refresh", "title": "Claude Sessions: Refresh", "icon": "$(refresh)" },
+      { "command": "claudeSessionTracker.purrOff", "title": "Claude Sessions: Apagar Purr mode (gatos)", "icon": "$(sparkle)" },
+      { "command": "claudeSessionTracker.purrOn", "title": "Claude Sessions: Encender Purr mode (gatos)", "icon": "$(circle-slash)" },
+      { "command": "claudeSessionTracker.muteSound", "title": "Claude Sessions: Silenciar sonidos", "icon": "$(unmute)" },
+      { "command": "claudeSessionTracker.unmuteSound", "title": "Claude Sessions: Activar sonidos", "icon": "$(mute)" },
+      { "command": "claudeSessionTracker.hideIdle", "title": "Claude Sessions: Ocultar sesiones ociosas", "icon": "$(eye)" },
+      { "command": "claudeSessionTracker.showIdle", "title": "Claude Sessions: Mostrar sesiones ociosas", "icon": "$(eye-closed)" },
+      { "command": "claudeSessionTracker.openSession", "title": "Claude Sessions: Open Session" },
+      { "command": "claudeSessionTracker.focusView", "title": "Claude Sessions: Focus Panel" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "claudeSessionTracker.purrOff", "when": "view == claudeSessionTracker.sessions && claudeSessionTracker.purrOn", "group": "navigation@0" },
+        { "command": "claudeSessionTracker.purrOn", "when": "view == claudeSessionTracker.sessions && !claudeSessionTracker.purrOn", "group": "navigation@0" },
+        { "command": "claudeSessionTracker.muteSound", "when": "view == claudeSessionTracker.sessions && !claudeSessionTracker.soundMuted", "group": "navigation@1" },
+        { "command": "claudeSessionTracker.unmuteSound", "when": "view == claudeSessionTracker.sessions && claudeSessionTracker.soundMuted", "group": "navigation@1" },
+        { "command": "claudeSessionTracker.hideIdle", "when": "view == claudeSessionTracker.sessions && !claudeSessionTracker.idleHidden", "group": "navigation@2" },
+        { "command": "claudeSessionTracker.showIdle", "when": "view == claudeSessionTracker.sessions && claudeSessionTracker.idleHidden", "group": "navigation@2" },
+        { "command": "claudeSessionTracker.refresh", "when": "view == claudeSessionTracker.sessions", "group": "navigation@3" }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Session Tracker",
+      "properties": {
+        "claudeSessionTracker.layout": {
+          "type": "string",
+          "enum": ["cards", "list", "kanban"],
+          "default": "cards",
+          "description": "Disposición del panel."
+        },
+        "claudeSessionTracker.density": {
+          "type": "string",
+          "enum": ["comfortable", "compact"],
+          "default": "comfortable",
+          "description": "Densidad visual (cómodo/amigable vs compacto/ingenieril)."
+        },
+        "claudeSessionTracker.purrMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Muestra un gato pixel-art animado por sesión, con pose según el estado."
+        },
+        "claudeSessionTracker.vibration": {
+          "type": "string",
+          "enum": ["off", "subtle", "medium"],
+          "default": "subtle",
+          "description": "Vibración (shake) de la tarjeta al necesitar atención."
+        },
+        "claudeSessionTracker.sound.waitingInput": {
+          "type": "string",
+          "enum": ["knock", "chime", "glass", "ping", "marimba", "blip", "alert", "success", "tada", "off"],
+          "default": "knock",
+          "description": "Sonido al pasar a 'espera tu input'."
+        },
+        "claudeSessionTracker.sound.waitingPermission": {
+          "type": "string",
+          "enum": ["glass", "alert", "blip", "knock", "ping", "chime", "marimba", "success", "tada", "off"],
+          "default": "glass",
+          "description": "Sonido al pasar a 'posible permiso'."
+        },
+        "claudeSessionTracker.sound.done": {
+          "type": "string",
+          "enum": ["tada", "success", "marimba", "chime", "ping", "off"],
+          "default": "tada",
+          "description": "Sonido al terminar exitosamente sin necesitar input."
+        },
+        "claudeSessionTracker.sound.onlyWhenUnfocused": {
+          "type": "boolean",
+          "default": true,
+          "description": "Solo reproduce sonidos cuando la ventana de VS Code no está enfocada."
+        },
+        "claudeSessionTracker.thresholds.workingSeconds": {
+          "type": "number",
+          "default": 5,
+          "description": "Si el transcript se actualizó hace menos de N segundos, la sesión se considera 'trabajando'."
+        },
+        "claudeSessionTracker.thresholds.idleMinutes": {
+          "type": "number",
+          "default": 3,
+          "description": "Tras N minutos sin actividad, una sesión que terminó pasa de 'espera input' a 'ociosa/lista'."
+        },
+        "claudeSessionTracker.showClosed": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mostrar sesiones cuyo proceso ya no está vivo."
+        },
+        "claudeSessionTracker.hideIdle": {
+          "type": "boolean",
+          "default": false,
+          "description": "Ocultar las sesiones 'ociosa / lista' (terminadas). Se alterna con el botón 👁 del panel."
+        },
+        "claudeSessionTracker.soundEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reproducir sonidos de alerta. Se alterna con el botón 🔊 del panel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "typecheck": "tsc --noEmit -p ./",
+    "package": "npx --yes @vscode/vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.5.0"
+  }
+}

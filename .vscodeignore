@@ -1,0 +1,13 @@
+.vscode/**
+src/**
+node_modules/**
+esbuild.js
+tsconfig.json
+demo/**
+verify.js
+make-icon.js
+*.vsix
+**/*.map
+**/*.ts
+.gitignore
+.github/**
