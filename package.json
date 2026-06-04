@@ -2,7 +2,7 @@
   "name": "claude-session-tracker",
   "displayName": "Claude Session Tracker",
   "description": "Radiador de sesiones de Claude Code: ve de un vistazo cuáles trabajan, cuáles esperan tu input y cuáles terminaron — y avísate cuando te necesitan.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "jaimejotar",
   "license": "MIT",
   "icon": "media/icon-128.png",

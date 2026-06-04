@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.1.6] - 2026-06-04
+- Listing: hero animado (GIF) en el README — un gato por estado, vivo (cola, ovillo, respiración, tipeo).
+
 ## [0.1.5] - 2026-06-04
 - Listing: capturas de los estados (gato por estado) en el README, visibles en el Marketplace.
 - Infra: GitHub Actions — build en cada push/PR + auto-publish al hacer push de un tag `vX.Y.Z`.
