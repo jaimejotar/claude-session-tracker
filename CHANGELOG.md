@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.5] - 2026-06-04
+- Listing: capturas de los estados (gato por estado) en el README, visibles en el Marketplace.
+- Infra: GitHub Actions — build en cada push/PR + auto-publish al hacer push de un tag `vX.Y.Z`.
+
 ## [0.1.4] - 2026-06-04
 - Nuevo: ícono de la extensión (gato pixel-art 128×128) para el Marketplace y la vista de Extensiones.
 - Cambio: publisher `jaimejotar`.
